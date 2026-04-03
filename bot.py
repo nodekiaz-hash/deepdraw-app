@@ -12,7 +12,7 @@ import re
 
 from database import Session, User
 
-API_URL = "http://127.0.0.1:8000/calculate"
+API_URL = "https://deepdraw-app-production.up.railway.app/calculate"
 
 LANG, EMAIL, MENU_MAIN, D, H, F, K, END = range(8)
 
