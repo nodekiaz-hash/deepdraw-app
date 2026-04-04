@@ -273,6 +273,7 @@ async def get_k(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         print("API ERROR:", e)
         text = f"{t(lang, 'error')}\n\n{e}"
+        raise e
 
     await update.message.reply_text(text)
 
