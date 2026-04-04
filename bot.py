@@ -253,7 +253,7 @@ async def get_k(update: Update, context: ContextTypes.DEFAULT_TYPE):
     session.commit()
 
     try:
-        res = requests.post(API_URL, json={
+        res = requests.get(API_URL, params={
             "email": user.email,
             "d": context.user_data["d"],
             "h": context.user_data["h"],
