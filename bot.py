@@ -253,6 +253,8 @@ async def get_k(update: Update, context: ContextTypes.DEFAULT_TYPE):
     session.commit()
 
     try:
+        print("API CALL START")
+
         res = requests.post(API_URL, json={
             "email": user.email,
             "d": context.user_data["d"],
