@@ -12,8 +12,9 @@ from telegram.ext import (
 
 from lang import get_text
 
-API_URL = os.getenv("API_URL")  # pl: https://your-api.up.railway.app/calculate
-BOT_TOKEN = os.getenv("TELEGRAM_TOKEN")
+API_URL = os.getenv("API_URL")
+BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")  # ⚠️ JAVÍTVA
+
 
 # -------------------------
 # 🧠 USER STATE
@@ -75,7 +76,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # --- CONTINUE ---
     elif query.data == "continue":
         user["state"] = "EMAIL_MENU"
-
         lang = user["lang"]
 
         keyboard = [
@@ -98,18 +98,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # --- EXIT ---
     elif query.data == "exit":
-        user["state"] = "LANG_SELECT"
-
-        keyboard = [
-            [InlineKeyboardButton("🇭🇺 Magyar", callback_data="lang_hu")],
-            [InlineKeyboardButton("🇬🇧 English", callback_data="lang_en")],
-            [InlineKeyboardButton("🇩🇪 Deutsch", callback_data="lang_de")],
-        ]
-
-        await query.edit_message_text(
-            "Restarting...",
-            reply_markup=InlineKeyboardMarkup(keyboard)
-        )
+        return await start(update, context)  # 🔥 restart tisztán
 
     # --- MAIN MENU ---
     elif query.data == "calc":
@@ -120,9 +109,10 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         from credit import get_credit_info
         msg = get_credit_info(user["data"].get("email"), user["lang"])
 
-        keyboard = get_main_menu(user["lang"])
-
-        await query.edit_message_text(msg, reply_markup=keyboard)
+        await query.edit_message_text(
+            msg,
+            reply_markup=get_main_menu(user["lang"])
+        )
 
     elif query.data == "new_calc":
         user["state"] = "CALC_D"
@@ -152,14 +142,10 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # --- EMAIL ---
     if user["state"] == "EMAIL_INPUT":
         user["data"]["email"] = text
-
-        # TODO: database check (most dummy)
-        credit = 3
-
         user["state"] = "MAIN_MENU"
 
         await update.message.reply_text(
-            get_text(lang, "email_status", email=text, credit=credit),
+            get_text(lang, "email_saved", email=text),
             reply_markup=get_main_menu(lang)
         )
 
@@ -189,7 +175,6 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         elif user["state"] == "CALC_K":
             user["data"]["k"] = value
 
-            # API CALL
             payload = {
                 "email": user["data"]["email"],
                 "d": user["data"]["d"],
@@ -200,11 +185,11 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             }
 
             try:
-                requests.post(API_URL, json=payload)
+                response = requests.post(API_URL, json=payload)
+                print("API RESPONSE:", response.text)
             except Exception as e:
                 print("API ERROR:", e)
 
-            # RESULT DISPLAY
             msg = "\n".join([
                 get_text(lang, "result_header"),
                 get_text(lang, "result_d", d=user["data"]["d"]),
@@ -230,6 +215,9 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # 🚀 APP INDÍTÁS
 # -------------------------
 def main():
+    if not BOT_TOKEN:
+        raise ValueError("TELEGRAM_BOT_TOKEN missing!")
+
     app = ApplicationBuilder().token(BOT_TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
