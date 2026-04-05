@@ -2,5 +2,5 @@ fastapi
 uvicorn
 requests
 python-telegram-bot
-sqlalchemy
 sib-api-v3-sdk
+supabase

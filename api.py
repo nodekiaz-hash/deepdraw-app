@@ -1,41 +1,54 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
+
 from app import process_calculation
 
 app = FastAPI()
 
 
+# -------------------------
+# 📦 REQUEST MODEL
+# -------------------------
 class CalculationRequest(BaseModel):
     email: str
     d: float
     h: float
     f: float
     k: float
+    lang: str = "en"
 
 
-@app.get("/")
-def root():
-    return {"message": "DeepDraw API running"}
-
-
+# -------------------------
+# 🚀 ENDPOINT
+# -------------------------
 @app.post("/calculate")
-def calculate(request: CalculationRequest):
-    result = process_calculation(
-        request.email,
-        request.d,
-        request.h,
-        request.f,
-        request.k
-    )
+def calculate(data: CalculationRequest):
+    try:
+        result = process_calculation(
+            email=data.email,
+            d=data.d,
+            h=data.h,
+            f=data.f,
+            k=data.k,
+            lang=data.lang
+        )
 
-    # hiba kezelés
-    if isinstance(result, str):
         return {
-            "status": "error",
-            "message": result
+            "status": "success",
+            "data": result
         }
 
-    return {
-        "status": "success",
-        "data": result
-    }
+    except Exception as e:
+        print("API ERROR:", e)
+        return {
+            "status": "error",
+            "message": str(e)
+        }
+
+
+# -------------------------
+# ❤️ HEALTH CHECK
+# -------------------------
+@app.get("/")
+def root():
+    return {"status": "API running"}

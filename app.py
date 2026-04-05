@@ -1,95 +1,85 @@
-import os
-import sib_api_v3_sdk
-from sib_api_v3_sdk.rest import ApiException
-
-from calc import process_calculation_logic  # 👉 ez a TE számítási függvényed
-
-
-# -------------------------
-# 🌍 NYELVI SZÖVEGEK
-# -------------------------
-TEXTS = {
-    "hu": {
-        "subject": "Számítás eredmény",
-        "body": "Az eredményed:"
-    },
-    "en": {
-        "subject": "Calculation result",
-        "body": "Your result:"
-    },
-    "de": {
-        "subject": "Berechnung Ergebnis",
-        "body": "Dein Ergebnis:"
-    }
-}
-
-
-# -------------------------
-# 📧 EMAIL KÜLDÉS (BREVO)
-# -------------------------
-def send_email(to_email, subject, html_content):
-    print("EMAIL FUNCTION STARTED")
-
-    api_key = os.getenv("BREVO_API_KEY")
-
-    if not api_key:
-        print("HIBA: nincs BREVO_API_KEY beállítva")
-        return
-
-    configuration = sib_api_v3_sdk.Configuration()
-    configuration.api_key['api-key'] = api_key
-
-    api_instance = sib_api_v3_sdk.TransactionalEmailsApi(
-        sib_api_v3_sdk.ApiClient(configuration)
-    )
-
-    send_smtp_email = sib_api_v3_sdk.SendSmtpEmail(
-        to=[{"email": to_email}],
-        sender={"name": "DeepDraw", "email": "noreply@yourdomain.com"},  # 👉 ezt később saját domainre!
-        subject=subject,
-        html_content=html_content
-    )
-
-    try:
-        response = api_instance.send_transac_email(send_smtp_email)
-        print("EMAIL SENT:", response)
-
-    except ApiException as e:
-        print("EMAIL ERROR:", e)
+from calc import calculate
+from email_service import send_email
+from lang import get_text
+from database import get_or_create_user, decrement_credit
 
 
 # -------------------------
 # 🚀 FŐ FÜGGVÉNY
 # -------------------------
 def process_calculation(email, d, h, f, k, lang="en"):
+    """
+    Teljes számítási folyamat:
+    - user ellenőrzés (DB)
+    - credit ellenőrzés
+    - számítás
+    - credit levonás
+    - email küldés
+    - visszatérés API felé
+    """
+
     try:
         print("PROCESS START")
 
-        # 1. számítás (a TE calc.py-ból)
-        result = process_calculation_logic(email, d, h, f, k)
+        # -------------------------
+        # 1. USER + CREDIT (DB)
+        # -------------------------
+        user, is_new = get_or_create_user(email)
+        credit = user["credit"]
 
-        # ha string → hiba
-        if isinstance(result, str):
-            return result
+        if credit <= 0:
+            return {
+                "status": "error",
+                "message": get_text(lang, "no_credit")
+            }
 
-        # 2. nyelv
-        t = TEXTS.get(lang, TEXTS["en"])
+        # -------------------------
+        # 2. SZÁMÍTÁS
+        # -------------------------
+        result = calculate(d, h, f, k)
 
-        subject = t["subject"]
+        # -------------------------
+        # 3. CREDIT LEVONÁS
+        # -------------------------
+        decrement_credit(email)
+
+        # -------------------------
+        # 4. EMAIL SZÖVEG
+        # -------------------------
+        subject = get_text(lang, "email_subject")
 
         html_content = f"""
-        <h2>{t['body']}</h2>
+        <h2>{get_text(lang, "result_header")}</h2>
+
+        <p>{get_text(lang, "result_d", d=d)}</p>
+        <p>{get_text(lang, "result_h", h=h)}</p>
+        <p>{get_text(lang, "result_f", f=f)}</p>
+        <p>{get_text(lang, "result_k", k=k)}</p>
+
+        <hr>
+
         <p><b>D0:</b> {result['D0']}</p>
         <p><b>Dreal:</b> {result['Dreal']}</p>
         <p><b>Draw ratio:</b> {result['draw_ratio']}</p>
         """
 
-        # 3. email küldés
+        # -------------------------
+        # 5. EMAIL KÜLDÉS
+        # -------------------------
         send_email(email, subject, html_content)
 
-        # 4. visszatérés API felé
-        return result
+        # -------------------------
+        # 6. VISSZATÉRÉS
+        # -------------------------
+        return {
+            "status": "success",
+            "result": result,
+            "credit_remaining": credit - 1
+        }
 
     except Exception as e:
-        print("PROCESS ERROR:", e)
-        return str(e)
+        print("APP ERROR:", e)
+        return {
+            "status": "error",
+            "message": str(e)
+        }
