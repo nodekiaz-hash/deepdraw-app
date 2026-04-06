@@ -1,6 +1,6 @@
 import os
 import requests
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardRemove
 from telegram.ext import (
     ApplicationBuilder,
     CommandHandler,
@@ -13,7 +13,7 @@ from telegram.ext import (
 from lang import get_text
 
 API_URL = os.getenv("API_URL")
-BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")  # ⚠️ JAVÍTVA
+BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 
 
 # -------------------------
@@ -98,7 +98,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # --- EXIT ---
     elif query.data == "exit":
-        return await start(update, context)  # 🔥 restart tisztán
+        return await start(update, context)
 
     # --- MAIN MENU ---
     elif query.data == "calc":
@@ -138,6 +138,14 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = get_user(update.effective_user.id)
     text = update.message.text
     lang = user["lang"]
+
+    # 🔒 INPUT BLOCK MENÜ ÁLLAPOTBAN
+    if user["state"] in ["LANG_SELECT", "WELCOME", "EMAIL_MENU", "MAIN_MENU"]:
+        await update.message.reply_text(
+            get_text(lang, "use_buttons"),
+            reply_markup=get_main_menu(lang) if user["state"] == "MAIN_MENU" else None
+        )
+        return
 
     # --- EMAIL ---
     if user["state"] == "EMAIL_INPUT":
@@ -185,7 +193,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             }
 
             try:
-                response = requests.post(API_URL, json=payload)
+                response = requests.post(f"{API_URL}/calculate", json=payload)
                 print("API RESPONSE:", response.text)
             except Exception as e:
                 print("API ERROR:", e)
